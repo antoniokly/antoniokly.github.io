@@ -92,7 +92,7 @@ export const projects: Project[] = [
   {
     name: 'Agentic delivery pipeline',
     summary:
-      'Jira to merged pull request with AI agents: Claude implements, Claude and Codex review independently and iterate until both are clean, then a person approves. 31 agent PRs in 3 days.',
+      'Jira to merged pull request with AI agents, used to build ChatFinance\'s sign-up, subscription and billing backend: Claude implements, Claude and Codex review independently until both are clean, then a person approves. 31 agent PRs in 3 days.',
     tags: ['Claude Code', 'Codex', 'GitHub Actions', 'Jira', 'Human in the loop'],
     page: '/projects/agentic-delivery/',
     featured: true,

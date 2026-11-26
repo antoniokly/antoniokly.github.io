@@ -18,7 +18,7 @@ env:
   meta={[
     { label: 'Role', value: 'Solo: design, workflows, ops' },
     { label: 'Stack', value: 'Jira · GitHub Actions · Claude Code · Codex' },
-    { label: 'Status', value: 'Experimental, run on a real backend' },
+    { label: 'Status', value: 'Experimental, building ChatFinance accounts and billing' },
   ]}
 >
   <section class="container cs-section first">
@@ -31,8 +31,10 @@ env:
           merge” agents could own, while keeping a person accountable for what reaches <code>main</code>.
         </p>
         <p>
-          I ran it against <strong>finance-server</strong>, the Swift and Postgres backend of my forecasting
-          platform, where the work is real: identity, persistence, validation, billing and security tests.
+          I ran it on real product work: <strong>finance-server</strong>, the Swift and Postgres backend that
+          takes <a href="/projects/chatfinance/">ChatFinance</a> from a demo to a product people can sign up
+          for, subscribe to and pay for. The agents built user accounts and organisations, workspace membership,
+          billing customers and subscriptions, and the validation and security tests around them.
         </p>
         <p class="pull">
           The goal: when I open a pull request, it already has no open findings, its tests are running or
