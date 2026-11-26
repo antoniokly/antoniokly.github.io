@@ -220,7 +220,7 @@ h3 { font-size: 17px; margin: 0 0 6px; }
   .cs-meta { grid-template-columns: 1fr; gap: 12px; }
   .match { grid-template-columns: 1fr; }
   .match-link { text-align: center; }
-  .nav nav a:nth-child(2), .nav nav a:nth-child(3), .nav nav a:nth-child(4) { display: none; }
+  .nav nav a:nth-child(2), .nav nav a:nth-child(3), .nav nav a:nth-child(4), .nav nav a:nth-child(5) { display: none; }
 }
 
 .cs-grid .strength-grid { grid-template-columns: repeat(2, 1fr); margin-bottom: 20px; }
@@ -240,3 +240,20 @@ h3 { font-size: 17px; margin: 0 0 6px; }
 .roadmap p:not(.eyebrow) { margin: 0 0 18px; max-width: 70ch; }
 .roadmap .arch-row { counter-reset: r; }
 .roadmap .arch-box { flex: 1 1 120px; position: relative; }
+
+/* Status table */
+.status-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.status-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: 0 12px 10px 0; border-bottom: 1px solid var(--border); }
+.status-table td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--border); }
+.status-table td:last-child { font-weight: 600; white-space: nowrap; }
+
+/* Timeline */
+.timeline { list-style: none; padding: 0; margin: 0; border-left: 2px solid var(--border); }
+.timeline li { display: grid; grid-template-columns: 84px 1fr; gap: 14px; padding: 0 0 18px 18px; position: relative; }
+.timeline li::before { content: ''; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); }
+.timeline li.warn::before { border-color: #d97706; background: color-mix(in srgb, #d97706 30%, var(--surface)); }
+.timeline li.ok::before { border-color: #16a34a; background: color-mix(in srgb, #16a34a 30%, var(--surface)); }
+.timeline time { font: 600 13px/1.9 ui-monospace, Menlo, monospace; color: var(--muted); }
+.timeline div { color: var(--muted); }
+.timeline b { color: var(--text); }
+@media (max-width: 600px) { .timeline li { grid-template-columns: 1fr; gap: 2px; } }

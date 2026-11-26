@@ -1,0 +1,189 @@
+---
+import { Code } from 'astro:components';
+import ProjectLayout from '../../layouts/ProjectLayout.astro';
+import Figure from '../../components/Figure.astro';
+
+const gateCode = `# .github/workflows/review-gate.yml — runs when either review arrives; never sleeps or polls
+env:
+  MAX_FIX_ROUNDS: 3          # automated fix rounds before the gate stops and hands the PR to me
+
+# Findings from either reviewer → one combined review, PR stays a draft, claude-fix is dispatched.
+# Both clean for the same head commit → resolve threads, mark ready, Jira "PR Open", Tests start.`;
+---
+
+<ProjectLayout
+  title="Agentic delivery pipeline"
+  kicker="Case study · Agentic workflows · CI/CD"
+  lead="An experiment in letting AI agents do the routine work of software delivery. A Jira issue becomes a reviewed pull request: one agent writes the code, two independent agents review it, they iterate until both are satisfied, and only then does a person review, approve and merge."
+  meta={[
+    { label: 'Role', value: 'Solo: design, workflows, ops' },
+    { label: 'Stack', value: 'Jira · GitHub Actions · Claude Code · Codex' },
+    { label: 'Status', value: 'Experimental, run on a real backend' },
+  ]}
+>
+  <section class="container cs-section first">
+    <div class="cs-grid">
+      <h2>The idea</h2>
+      <div class="prose">
+        <p>
+          AI coding agents can write a feature, but an unreviewed pull request just moves the work to the
+          person who has to check it. I wanted to see how much of the loop between “ticket” and “ready to
+          merge” agents could own, while keeping a person accountable for what reaches <code>main</code>.
+        </p>
+        <p>
+          I ran it against <strong>finance-server</strong>, the Swift and Postgres backend of my forecasting
+          platform, where the work is real: identity, persistence, validation, billing and security tests.
+        </p>
+        <p class="pull">
+          The goal: when I open a pull request, it already has no open findings, its tests are running or
+          passed, and it is waiting only for my decision.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Results</h2>
+      <div>
+        <div class="stats">
+          <div><b>31</b><span>pull requests opened by the agent</span></div>
+          <div><b>24</b><span>merged after my review</span></div>
+          <div><b>3</b><span>days, 3–5 Nov 2026</span></div>
+          <div><b>~6.5</b><span>reviews per PR on average</span></div>
+        </div>
+        <p class="note">From the repository's pull request history. The rest were closed, superseded or are still open.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>How it works</h2>
+      <div>
+        <ol class="flow">
+          <li><span class="flow-step">Jira</span><span>I move an issue to <em>Ready for Agent</em>. A Jira automation rule sends it to GitHub as a <code>repository_dispatch</code> event.</span></li>
+          <li class="check"><span class="flow-step">Guard</span><span>A light job validates the payload, skips duplicates and moves Jira to <em>In Progress</em>.</span></li>
+          <li><span class="flow-step">Implement</span><span>Claude Code, in a Swift container, writes the change, builds, runs the tests and pushes a <code>FIN-n</code> branch. A draft PR opens.</span></li>
+          <li class="check"><span class="flow-step">Review ×2</span><span>Claude and OpenAI's Codex review the same commit in parallel, independently. Neither may change the PR or Jira.</span></li>
+          <li class="check"><span class="flow-step">Gate</span><span>Once both reviews exist for the current commit, the gate combines them. Findings from either one send the PR back for a fix.</span></li>
+          <li><span class="flow-step">Fix</span><span>Claude fixes every finding and unresolved thread, then the next review round starts. At most three automated rounds.</span></li>
+          <li><span class="flow-step">Publish</span><span>Both clean: threads resolved, the PR marked ready, Jira moves to <em>PR Open</em>, and the full test suite runs.</span></li>
+          <li class="check"><span class="flow-step">Human</span><span>I review. Approve moves Jira to <em>Ready to Merge</em>; requesting changes sends it back into the loop with my comments.</span></li>
+          <li><span class="flow-step">Merge</span><span>Merging moves Jira to <em>Done</em> with a link to the PR. Deployment runs through GitHub Actions.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>A real run: FIN-28</h2>
+      <div>
+        <p class="section-intro">
+          “Implement shared financial account management”: 780 lines across 6 files, from Jira to a clean,
+          published pull request in 26 minutes, with two genuine bugs caught and fixed on the way.
+        </p>
+        <ol class="timeline">
+          <li><time>12:01</time><div><b>Draft PR opened by the agent.</b> Claude implemented the issue, built and tested it, and pushed the branch.</div></li>
+          <li class="warn"><time>12:05</time><div><b>Round 1: changes requested.</b> Claude found that account references were validated on update but not on create or duplicate, and that an amount like <code>"1,000.50"</code> was silently stored as <code>1</code>, which is quiet data corruption in a finance app. Codex independently flagged a race on concurrent account names.</div></li>
+          <li><time>12:11</time><div><b>Fix pushed.</b> Claude fixed each finding with tests, and the next round started automatically.</div></li>
+          <li class="warn"><time>12:16</time><div><b>Round 2: changes requested.</b> Claude found two low-severity gaps (unchecked metadata text that would surface as a raw database error, and a missing test), and Codex found that two concurrent updates to the same account could drop fields. A second fix followed at 12:22.</div></li>
+          <li class="ok"><time>12:27</time><div><b>Round 3: both clean.</b> Claude found nothing actionable and Codex found no major issues. The gate resolved every thread and published the PR for me.</div></li>
+          <li class="ok"><time>Next day</time><div><b>Merged after my review.</b> Jira moved to Done with a link to the PR.</div></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Jira follows the PR</h2>
+      <div>
+        <p class="section-intro">The board always reflects the real state of the work, with no manual updates.</p>
+        <Figure
+          src="/images/agentic/jira-board.jpg"
+          alt="The Finance Jira board with columns Backlog, Ready for Agent, In Progress, PR Open, Changes Requested, Ready to Merge and Done; FIN-54 sits in PR Open and 25 issues are Done"
+          width={1600}
+          height={791}
+          label="Jira"
+          caption="The board, with one column per stage of the agent workflow. Moving an issue into Ready for Agent is the only manual step before review."
+        />
+        <div style="height: 20px"></div>
+        <table class="status-table">
+          <thead><tr><th>Event</th><th>Jira status</th></tr></thead>
+          <tbody>
+            <tr><td>Implementation starts, review loop running</td><td>In Progress</td></tr>
+            <tr><td>Both reviewers clean, PR published</td><td>PR Open</td></tr>
+            <tr><td>I request changes</td><td>Changes Requested → In Progress</td></tr>
+            <tr><td>I approve</td><td>Ready to Merge</td></tr>
+            <tr><td>Merged</td><td>Done</td></tr>
+            <tr><td>Implementation fails, or closed without merging</td><td>Backlog</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Guardrails</h2>
+      <div>
+        <div class="strength-grid">
+          <div>
+            <h3>A person owns the merge</h3>
+            <p>Agents never approve or merge. Only a review from a person on a published PR moves it forward, and <code>main</code> requires the test check.</p>
+          </div>
+          <div>
+            <h3>Two independent reviewers</h3>
+            <p>Different models catch different things. A PR is published only when both are clean for the same commit.</p>
+          </div>
+          <div>
+            <h3>Secrets out of agent reach</h3>
+            <p>Jira credentials are used only in light jobs where no agent runs, because an agent could edit a helper script before a later step ran it with the secrets.</p>
+          </div>
+          <div>
+            <h3>Bounded and recoverable</h3>
+            <p>Three fix rounds, then the loop stops and hands over. If an agent runs out of time, its unfinished work is still pushed to a branch, never lost.</p>
+          </div>
+        </div>
+        <div class="code">
+          <Code code={gateCode} lang="yaml" theme="github-dark-dimmed" wrap />
+        </div>
+        <ul class="facts">
+          <li><strong>Cost-aware:</strong> nothing sleeps or polls. The gate runs only when a review arrives, and every unrelated comment matches no job, so it bills nothing.</li>
+          <li><strong>Least privilege:</strong> every workflow starts with no permissions and each job asks only for what it needs. Pull requests from forks get no write-capable automation.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>What I learned</h2>
+      <div class="prose">
+        <p>
+          <strong>Fix the class, not the instance.</strong> On one issue (FIN-57), Claude kept patching exactly
+          the case a reviewer reported. Each patch added a data repair to a migration, which gave Codex new
+          edge cases to find, until the round cap stopped it. The fix prompt now asks the agent to fix every
+          sibling of a finding (other write paths, legacy states, inputs) and to check and refuse rather than
+          add guessing logic.
+        </p>
+        <p>
+          <strong>Agents need the same engineering as people, written down.</strong> The repository carries
+          <code>AGENTS.md</code>, an architecture document, a decision log and a project-state file, so each
+          agent run starts with the context a new teammate would need.
+        </p>
+        <p>
+          <strong>The human step is the valuable one.</strong> Removing the mechanical rounds meant my review
+          time went to design and intent, not to pointing out a missing test.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section cs-end">
+    <a class="btn" href="/projects/money/">← Money</a>
+    <a class="btn primary" href="/#contact">Get in touch</a>
+  </section>
+</ProjectLayout>

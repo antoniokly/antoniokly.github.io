@@ -1,7 +1,7 @@
 // All portfolio content lives here. Edit this file to update the site.
 
 export const profile = {
-  name: 'Antonio Yip',
+  name: 'Kai Leung (Antonio) Yip',
   role: 'AI Engineer · Software Engineer',
   tagline:
     'I build AI applications that people can trust with real numbers: agentic Python services with guardrails, evals and tracing, shipped through CI/CD to production.',
@@ -14,7 +14,7 @@ export const profile = {
   links: {
     github: 'https://github.com/antoniokly',
     linkedin: 'https://www.linkedin.com/in/antonio-kai-leung-yip-481a96120',
-    email: '', // e.g. 'you@example.com'
+    email: 'kai.perth@icloud.com',
     resume: '', // e.g. '/resume.pdf' (put the file in public/)
   },
 };
@@ -87,6 +87,14 @@ export const projects: Project[] = [
       'A personal finance manager where an AI agent turns emailed invoices into records, and bank transactions from an open-banking feed are matched to them automatically.',
     tags: ['Swift', 'MCP', 'On-device LLM', 'Postgres', 'Self-hosted sync'],
     page: '/projects/money/',
+    featured: true,
+  },
+  {
+    name: 'Agentic delivery pipeline',
+    summary:
+      'Jira to merged pull request with AI agents: Claude implements, Claude and Codex review independently and iterate until both are clean, then a person approves. 31 agent PRs in 3 days.',
+    tags: ['Claude Code', 'Codex', 'GitHub Actions', 'Jira', 'Human in the loop'],
+    page: '/projects/agentic-delivery/',
     featured: true,
   },
   {
