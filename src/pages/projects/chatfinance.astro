@@ -1,0 +1,338 @@
+---
+import { Code } from 'astro:components';
+import ProjectLayout from '../../layouts/ProjectLayout.astro';
+import Figure from '../../components/Figure.astro';
+
+const guardCode = `# backend/agent.py — inside the add_item tool
+draft = ItemDraft(fields=fields, parent_id=parent_id)
+outcome = service.preview_item(owner_id, book_id, draft)
+if not isinstance(outcome, Ready):
+    return outcome.model_dump_json(), outcome   # needs_more / invalid: ask the user
+
+# Valid, but did the user say these numbers? A small model may make them up.
+if made_up := ungrounded(fields, _said(state["messages"])):
+    ask = NeedsMore(missing=made_up)
+    return f"{ask.model_dump_json()}\\nThe user didn't give these values. Ask; never guess.", ask
+
+answer = interrupt({"action": "add_item", "name": item.name, "summary": summary})
+if answer != "yes":
+    return CANCELLED, outcome
+service.commit_item(owner_id, book_id, item, outcome.value.parent_id)`;
+
+const groundingCode = `# backend/grounding.py
+def ungrounded(fields: dict[str, Any], sources: Sequence[str]) -> list[str]:
+    """The fields whose number or date appears in none of \`sources\`."""
+    said = set().union(*(numbers_in(text) for text in sources))   # "$20k" -> 20000
+    missing = []
+    for path, value in leaves(fields):                              # "interest.rate"
+        number = _decimal(value)
+        if number is not None and number not in said and number * 100 not in said:
+            missing.append(path)                                     # 0.07 is grounded by "7%"
+    return missing`;
+
+const evalCode = `# evals/model_eval.py — a task passes when the BOOK is right, not when the reply sounds right
+uv run python evals/model_eval.py --runs 3 qwen2.5:3b llama3.2:3b
+LLM_PROVIDER=openrouter uv run --env-file .env python evals/model_eval.py`;
+---
+
+<ProjectLayout
+  title="ChatFinance"
+  kicker="Case study · Agentic AI · Python"
+  lead="Financial forecasting where you describe your plans in plain English. An AI agent turns the conversation into a typed financial model; tested code does every calculation, and nothing is saved until you say yes."
+  meta={[
+    { label: 'Role', value: 'Solo: product, design, engineering' },
+    { label: 'Stack', value: 'Python · LangGraph · FastAPI · React · Docker' },
+    { label: 'Status', value: 'Live demo, Phase 1 complete' },
+  ]}
+  links={[
+    { label: 'Try the live demo ↗', href: 'https://chatfinance.duckdns.org', primary: true },
+    { label: 'See the Figma design ↗', href: 'https://www.figma.com/design/nwenl5yhPejlZaykq1MEGv' },
+  ]}
+>
+  <div class="container">
+    <Figure
+      src="/images/chatfinance/live-charts.jpg"
+      alt="ChatFinance: chat on the left, a dashboard with net worth, cash by year and loan balance charts on the right"
+      width={1360}
+      height={728}
+      caption="The live app: a conversation on the left, a 10-year forecast on the right."
+    />
+  </div>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>The problem</h2>
+      <div class="prose">
+        <p>
+          I used to work on budgeting and forecasting software. The calculations were never the hard part:
+          a loan, a depreciation schedule or a tax bracket is a handful of well-understood equations, and the
+          forecast itself is deterministic, tested code.
+        </p>
+        <p>
+          The hard part was <strong>input</strong>. Every asset, loan, income stream, cost, bank account,
+          depreciation rule and tax setting had to be entered through forms with dozens of fields. Users gave
+          up long before the model was complete, so the forecast was only ever as good as the patience of
+          the person typing.
+        </p>
+        <p class="pull">
+          Large language models are good at exactly the part people find tedious: understanding what someone
+          means. They are bad at exactly the part that must be right: arithmetic.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Objectives</h2>
+      <ol class="objectives">
+        <li>
+          <strong>Input by conversation.</strong>
+          <span>“Add a car loan of $20,000 at 7% over 5 years” becomes a valid, typed loan item, and the agent asks for whatever is missing.</span>
+        </li>
+        <li>
+          <strong>Numbers come from code, never the model.</strong>
+          <span>Repayments, transfer duty and every forecast figure are computed by the tested engine. The LLM only extracts values and asks questions.</span>
+        </li>
+        <li>
+          <strong>A person approves every write.</strong>
+          <span>The agent pauses and shows exactly what it is about to save. Nothing reaches the book until the user says yes.</span>
+        </li>
+        <li>
+          <strong>Scenarios from public data.</strong>
+          <span>“Can I afford an investment property?” The agent identifies every cost involved (duty, fees, rates, insurance), projects growth from historical averages and forecasts the time to break even, citing each assumption.</span>
+        </li>
+        <li>
+          <strong>Measurable, not vibes.</strong>
+          <span>Evals with real pass rates and a trace of every run, so a model or prompt change is a measured decision.</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>How a request flows</h2>
+      <div>
+        <p class="section-intro">
+          One message, from words to a saved, forecast item. Each step that could go wrong has a check in code
+          rather than an instruction in a prompt.
+        </p>
+        <ol class="flow">
+          <li><span class="flow-step">You</span><span>“Add a car loan of $20,000 at 7% over 5 years.”</span></li>
+          <li><span class="flow-step">LLM</span><span>Picks the <code>add_item</code> tool and extracts the fields it heard. Tool schemas come straight from the Pydantic models.</span></li>
+          <li class="check"><span class="flow-step">Validate</span><span>The service layer returns <code>Ready</code>, <code>NeedsMore</code> or <code>Invalid</code>. A missing start date goes back to the user as a question.</span></li>
+          <li class="check"><span class="flow-step">Ground</span><span>Every number and date in the tool call must appear in what the user actually said. Invented values are rejected.</span></li>
+          <li class="check"><span class="flow-step">Confirm</span><span>LangGraph <code>interrupt()</code> pauses the graph and the UI shows a Yes/No card with the exact item.</span></li>
+          <li><span class="flow-step">Commit</span><span>On yes, the service writes the item; the engine recomputes the forecast.</span></li>
+          <li><span class="flow-step">Update</span><span>The chat stream (SSE) emits <code>book_changed</code>; the dashboard refetches and redraws.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Working example</h2>
+      <div>
+        <p class="section-intro">
+          A real session on the live demo. The user leaves out the start date; the agent asks instead of
+          guessing, then shows the loan for approval.
+        </p>
+        <div class="shots-2">
+          <Figure
+            src="/images/chatfinance/live-confirm.jpg"
+            alt="The agent asks for the loan's start date, then shows a confirmation card with principal 20000, 7% compound interest, 5 years, starting 2026-12-01, and Yes / No buttons"
+            width={1360}
+            height={728}
+            label="Human in the loop"
+            caption="“needs more” → the agent asks for the date → a confirmation card with every field it will save."
+          />
+          <Figure
+            src="/images/chatfinance/live-reports.jpg"
+            alt="The Reports tab showing a quarterly cash report for 2026 to 2032 with totals and closing balances"
+            width={1360}
+            height={728}
+            label="Deterministic output"
+            caption="Reports are computed by the forecasting engine: profit, assets, credit, cash, depreciation and interest, monthly to annual."
+          />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Architecture</h2>
+      <div>
+        <p class="section-intro">
+          The service layer is the core: plain Python, Pydantic in and out, no HTTP and no LLM. Every way in is
+          a thin adapter over it, so the agent, the REST API and the CLI can never disagree about the rules.
+        </p>
+        <div class="arch" role="img" aria-label="Architecture: React frontend and CLI and agent tools call the service layer, which uses the corefinance engine and a book repository">
+          <div class="arch-row">
+            <div class="arch-box">React + TypeScript<small>shadcn/ui · TanStack Query · Recharts</small></div>
+            <div class="arch-box">CLI<small>argparse · same service calls</small></div>
+            <div class="arch-box">MCP server<small>planned</small></div>
+          </div>
+          <div class="arch-arrow">↓ REST + Server-Sent Events</div>
+          <div class="arch-row">
+            <div class="arch-box">FastAPI<small>streaming chat, /resume for Yes/No</small></div>
+            <div class="arch-box accent">LangGraph agent<small>tool node · checkpointer · interrupt</small></div>
+          </div>
+          <div class="arch-arrow">↓ direct calls, no HTTP</div>
+          <div class="arch-row">
+            <div class="arch-box strong">Service layer<small>draft validation · scenarios · duty tables · grounding</small></div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-row">
+            <div class="arch-box">corefinance engine<small>Pydantic v2 · deterministic forecasts</small></div>
+            <div class="arch-box">Book repository<small>JSON today, Postgres next</small></div>
+          </div>
+        </div>
+        <ul class="facts">
+          <li><strong>Model-agnostic.</strong> Ollama locally; OpenAI, OpenRouter, Gemini or Groq by one environment variable. The graph only sees LangChain's chat-model interface.</li>
+          <li><strong>Small models are enough</strong> because validation, grounding and the graph do the hard work.</li>
+          <li><strong>Ownership from day one.</strong> Every book carries an <code>owner_id</code>; storage sits behind a repository interface.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Guardrails in code</h2>
+      <div>
+        <p class="section-intro">
+          A prompt can ask a model not to invent numbers. Code can make sure it doesn't. Asked to “add a car
+          loan”, one small model filled in $25,000 at 5% over 5 years by itself. This is the check that now
+          catches it.
+        </p>
+        <div class="code">
+          <Code code={guardCode} lang="python" theme="github-dark-dimmed" wrap />
+        </div>
+        <div class="code">
+          <Code code={groundingCode} lang="python" theme="github-dark-dimmed" wrap />
+        </div>
+        <ul class="facts">
+          <li><strong>Responsible by design:</strong> the system prompt models scenarios only and never recommends what to buy.</li>
+          <li><strong>Money is never a float.</strong> Decimal end to end; JSON carries amounts as strings.</li>
+          <li><strong>Assumptions are cited:</strong> each one records its value, source, date and whether the user confirmed it.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Evals and tracing</h2>
+      <div class="prose">
+        <p>
+          Small models answer the same prompt differently from run to run; one run passed 5 of 7 tasks, the
+          next 4, with nothing changed. So the eval harness runs the app's real tasks against each model, each
+          in a fresh book, and scores the <em>book afterwards</em>: right tool, right fields, asked instead of
+          guessing, never wrote before confirmation. Results are pass rates over several runs, not a single
+          pass or fail.
+        </p>
+        <div class="code">
+          <Code code={evalCode} lang="bash" theme="github-dark-dimmed" wrap />
+        </div>
+        <p>
+          Every conversation is traced in <strong>Langfuse</strong>: graph nodes, LLM and tool calls, tokens,
+          latency, cost and validation failures. A model switch is a config change plus an eval re-run.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>From Figma to code</h2>
+      <div>
+        <p class="section-intro">
+          I designed every screen in Figma first, including the states that usually get forgotten (empty,
+          loading, validation error, dark mode), then built them in React, TypeScript, Tailwind and shadcn/ui.
+        </p>
+        <Figure
+          src="/images/chatfinance/figma-states.png"
+          alt="Figma board with six frames: Items, Reports and Charts on desktop, Items in dark mode, the empty first-run state and the loading state"
+          width={907}
+          height={418}
+          label="Figma"
+          caption="Design states: items, reports, charts, dark mode, first run and assistant working."
+        />
+        <div class="shots-2">
+          <Figure
+            src="/images/chatfinance/figma-charts.png"
+            alt="Figma design of the Charts tab with net worth, cash by year, what you own and loan balance charts"
+            width={1391}
+            height={868}
+            label="Design"
+          />
+          <Figure
+            src="/images/chatfinance/live-charts.jpg"
+            alt="The built Charts tab in the live app, matching the design's four charts"
+            width={1360}
+            height={728}
+            label="Built"
+          />
+        </div>
+        <p class="note">Same layout, same components, same four charts. The build ships the dark theme by default; light mode is one click away.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Engineering and delivery</h2>
+      <div>
+        <div class="stats">
+          <div><b>230</b><span>automated tests</span></div>
+          <div><b>5</b><span>LLM providers, one interface</span></div>
+          <div><b>7</b><span>outcome-scored eval tasks</span></div>
+          <div><b>2</b><span>containers behind Caddy</span></div>
+        </div>
+        <ul class="facts">
+          <li><strong>CI on every push:</strong> GitHub Actions runs ruff, formatting, mypy and pytest with branch coverage.</li>
+          <li><strong>Containerised:</strong> an API image and a web image (Caddy serving the React build and HTTPS) on a cloud VM.</li>
+          <li><strong>Safe deploys:</strong> images are tagged with the commit, the script checks the live site after deploying, and one command rolls back.</li>
+          <li><strong>Secrets stay out of code:</strong> provider keys come from the environment; the private engine dependency is fetched over the SSH agent, never baked into an image.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>What's next</h2>
+      <div>
+      <div class="roadmap">
+        <p class="eyebrow">Next big step · Forecast from real data</p>
+        <h3>Connect Money, so the forecast starts from what actually happened</h3>
+        <p>
+          Today a plan is only as good as what the user remembers. Next, ChatFinance will call <a href="/projects/money/">Money</a>'s API or MCP server for a snapshot of balances and the actual
+          transactions behind them, turn them into items in a new book, derive each item's trend and growth from
+          its history, and forecast forward from there.
+        </p>
+        <div class="arch-row">
+          <div class="arch-box">Money<small>balances · actuals</small></div>
+          <div class="arch-box">API / MCP<small>snapshot + history</small></div>
+          <div class="arch-box">New book<small>actuals become items</small></div>
+          <div class="arch-box">Trend &amp; growth<small>derived in code from history</small></div>
+          <div class="arch-box accent">Forecast<small>the same tested engine</small></div>
+        </div>
+      </div>
+      <ul class="facts">
+        <li><strong>Guided start:</strong> “I want to buy an investment property” → the agent picks the scenario, asks for the location, suggests every value with a median, range and source, and confirms group by group.</li>
+        <li><strong>Knowledge base on Postgres + pgvector:</strong> date-versioned reference tables and RAG over domain rules, with recall@k evals.</li>
+        <li><strong>MCP server</strong> over the same service layer, then login and multi-user books.</li>
+      </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section cs-end">
+    <a class="btn primary" href="https://chatfinance.duckdns.org">Try ChatFinance ↗</a>
+    <a class="btn" href="/projects/money/">Next: Money →</a>
+  </section>
+</ProjectLayout>

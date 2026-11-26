@@ -1,13 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import ProjectCard from '../components/ProjectCard.astro';
-import { profile, skills, projects } from '../data/site';
+import { profile, motivation, strengths, skills, projects } from '../data/site';
 
 const { links } = profile;
 const contacts = [
   links.email && { label: 'Email', href: `mailto:${links.email}` },
-  links.github && { label: 'GitHub', href: links.github },
   links.linkedin && { label: 'LinkedIn', href: links.linkedin },
+  links.github && { label: 'GitHub', href: links.github },
   links.resume && { label: 'Résumé', href: links.resume },
 ].filter(Boolean) as { label: string; href: string }[];
 ---
@@ -15,12 +15,63 @@ const contacts = [
 <Layout>
   <section class="hero container">
     <p class="eyebrow">{profile.role}{profile.location && ` · ${profile.location}`}</p>
-    <h1>Hi, I'm {profile.name.split(' ')[0]}.</h1>
-    <p class="lead">{profile.tagline}</p>
+    <h1>AI that's trusted with<br />real numbers.</h1>
+    <p class="lead">
+      I'm {profile.name.split(' ')[0]}. {profile.tagline}
+    </p>
     <div class="actions">
-      <a class="btn primary" href="#projects">See my work</a>
-      {links.resume && <a class="btn" href={links.resume}>Download résumé</a>}
-      {!links.resume && links.github && <a class="btn" href={links.github}>GitHub</a>}
+      <a class="btn primary" href="/projects/chatfinance/">Read the ChatFinance case study</a>
+      <a class="btn" href="https://chatfinance.duckdns.org">Try the live demo ↗</a>
+    </div>
+  </section>
+
+  <section class="container section">
+    <div class="feature">
+      <a class="feature-media" href="/projects/chatfinance/">
+        <img
+          src="/images/chatfinance/live-confirm.jpg"
+          alt="ChatFinance asking the user to confirm a car loan before saving it"
+          width="1360"
+          height="728"
+        />
+      </a>
+      <div class="feature-body">
+        <p class="eyebrow">Featured · ChatFinance</p>
+        <h2>An agent that asks before it writes</h2>
+        <p>
+          Describe a loan, a salary or a property purchase in plain English. A LangGraph agent extracts the
+          details, asks for anything missing, rejects numbers you never said, and shows exactly what it will
+          save. Tested code does every calculation.
+        </p>
+        <ul class="tags">
+          <li>Python</li><li>LangGraph</li><li>FastAPI</li><li>React</li><li>Evals</li><li>Langfuse</li>
+        </ul>
+        <a href="/projects/chatfinance/">Read the case study →</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="why" class="container section">
+    <div class="why">
+      <div class="why-story">
+        <p class="eyebrow">My motivation</p>
+        <h2>{motivation.heading}</h2>
+        {motivation.paragraphs.map((p) => <p>{p}</p>)}
+        <p class="pull">{motivation.pull}</p>
+      </div>
+      <aside class="why-goals">
+        <h3>What I'm aiming for</h3>
+        <ol class="objectives">
+          {
+            motivation.goals.map((g) => (
+              <li>
+                <strong>{g.title}</strong>
+                <span>{g.body}</span>
+              </li>
+            ))
+          }
+        </ol>
+      </aside>
     </div>
   </section>
 
@@ -41,6 +92,20 @@ const contacts = [
     </div>
   </section>
 
+  <section class="container section">
+    <h2>What I bring</h2>
+    <div class="strength-grid">
+      {
+        strengths.map((s) => (
+          <div>
+            <h3>{s.title}</h3>
+            <p>{s.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
   <section id="projects" class="container section">
     <h2>Projects</h2>
     <div class="grid">
@@ -50,7 +115,7 @@ const contacts = [
 
   <section id="contact" class="container section contact">
     <h2>Get in touch</h2>
-    <p>I'm open to new roles and interesting projects.</p>
+    <p>I'm looking for AI engineering roles where agents meet real business data.</p>
     <ul class="contact-links">
       {contacts.map((c) => <li><a class="btn" href={c.href}>{c.label}</a></li>)}
     </ul>

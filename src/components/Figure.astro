@@ -1,0 +1,19 @@
+---
+interface Props {
+  src: string;
+  alt: string;
+  caption?: string;
+  width?: number;
+  height?: number;
+  label?: string;
+}
+const { src, alt, caption, width, height, label } = Astro.props;
+---
+
+<figure class="shot">
+  {label && <span class="shot-label">{label}</span>}
+  <a href={src} target="_blank" rel="noopener">
+    <img src={src} alt={alt} width={width} height={height} loading="lazy" decoding="async" />
+  </a>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>

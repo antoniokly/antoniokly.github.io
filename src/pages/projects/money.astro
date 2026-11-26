@@ -1,0 +1,233 @@
+---
+import { Code } from 'astro:components';
+import ProjectLayout from '../../layouts/ProjectLayout.astro';
+import Figure from '../../components/Figure.astro';
+
+const ensembleCode = `// Money/Data/AllocationFinder/FoundationModelSuggester.swift
+// Runs entirely on device: financial narrations never leave the machine.
+let session = LanguageModelSession(instructions: Self.instructions(region: regionName))
+let generated = try await session.respond(
+    to: Self.prompt(narration: narration, amount: amount,
+                    options: options, examples: historyExamples),  // the user's own past choices
+    generating: GeneratedClassification.self                         // typed output, not free text
+).content
+// The model picks merchant + category only. Portfolio, holding event and tax
+// treatment follow deterministically from the user's own AllocationRules.`;
+
+const linkerCode = `/// TransactionLinker — runs at the end of every import.
+/// Strictly additive: an already-linked transaction is never considered again,
+/// and nothing here deletes or rewrites a link a person made by hand.
+///  - a Transfer between two of the user's own bank accounts
+///  - a bank payment ↔ the brokerage contribution it funded
+///  - a bank payment ↔ the unpaid invoice it settled`;
+---
+
+<ProjectLayout
+  title="Money"
+  kicker="Case study · AI agents · MCP · Swift"
+  lead="A personal finance manager that does its own bookkeeping. An AI agent reads invoices from my inbox and records them; bank transactions arrive from an open-banking feed and are matched to those invoices automatically."
+  meta={[
+    { label: 'Role', value: 'Solo: design, app, server, ops' },
+    { label: 'Stack', value: 'Swift · SwiftData · MCP · Hummingbird · Postgres' },
+    { label: 'Status', value: 'Active development' },
+  ]}
+>
+  <div class="container">
+    <Figure
+      src="/images/money/allocation-invoice.jpg"
+      alt="The Money macOS app: a list of allocations, an electricity tax invoice PDF open in a preview, and an inspector showing the allocation linked to a $168.94 bank transaction, merchant Synergy, category Electricity, deductible tax treatment and the attached invoice"
+      width={1600}
+      height={955}
+      caption="End to end, no typing: the agent downloaded this invoice from email, Money matched it to the bank payment that settled it, and allocated the category and tax treatment. Personal details redacted."
+    />
+  </div>
+
+  <section class="container cs-section first">
+    <div class="cs-grid">
+      <h2>The problem</h2>
+      <div class="prose">
+        <p>
+          Bills arrive by email as PDFs. Payments show up days later in a bank feed as cryptic lines like
+          <code>BPAY 0042 REF 7731…</code>. Keeping the two joined up, and tagged correctly for tax, means
+          downloading attachments, typing amounts and due dates, and then hunting for which payment settled
+          which bill.
+        </p>
+        <p class="pull">
+          It's repetitive, rule-bound work with a clear right answer: a good fit for an agent, as long as the
+          agent can't silently get the money wrong.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Objectives</h2>
+      <ol class="objectives">
+        <li>
+          <strong>Invoices in without typing.</strong>
+          <span>An agent triages email attachments, extracts merchant, amount, issue and due dates, and files the invoice with the PDF attached.</span>
+        </li>
+        <li>
+          <strong>Payments matched automatically.</strong>
+          <span>Bank transactions downloaded through the Redbark open-banking API are linked to the invoice they paid, and to transfers between my own accounts.</span>
+        </li>
+        <li>
+          <strong>Private by default.</strong>
+          <span>Transaction classification runs on an on-device language model. Bank credentials stay on my own server, never in the agent's context.</span>
+        </li>
+        <li>
+          <strong>Agent-agnostic.</strong>
+          <span>Everything the agent can do is an MCP tool, so the agent itself is swappable. Today it's Claude over MCP; my own agent is next.</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>How it works</h2>
+      <div>
+        <p class="section-intro">Two workflows meet at the same record: an <em>allocation</em> (what a payment was for, which portfolio, and how it's taxed).</p>
+        <div class="lanes">
+          <div class="lane">
+            <h3>1 · Invoice → allocation</h3>
+            <ol class="flow compact">
+              <li><span class="flow-step">Inbox</span><span>A bill arrives with a PDF attached.</span></li>
+              <li><span class="flow-step">Agent</span><span>Searches mail through an IMAP MCP server and downloads the attachment straight onto my server.</span></li>
+              <li><span class="flow-step">Extract</span><span>Reads merchant, amount, issue and due dates from the document.</span></li>
+              <li class="check"><span class="flow-step">Record</span><span>Calls Money's <code>create_allocation_with_attachment</code>: an unpaid allocation with the invoice attached.</span></li>
+            </ol>
+          </div>
+          <div class="lane">
+            <h3>2 · Bank feed → match</h3>
+            <ol class="flow compact">
+              <li><span class="flow-step">Redbark</span><span>A scheduled job on my sync server downloads new transactions from the open-banking API.</span></li>
+              <li><span class="flow-step">Import</span><span>Pending payments are superseded when they settle; categories are mapped from Consumer Data Right codes.</span></li>
+              <li class="check"><span class="flow-step">Link</span><span>The linker joins each payment to the unpaid invoice it settled, or to the other leg of a transfer.</span></li>
+              <li><span class="flow-step">Sync</span><span>Changes reach the app on every device in near real time.</span></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="match" aria-label="Illustration of an invoice matched to a bank payment">
+          <div class="match-card">
+            <span class="match-kind">Invoice · from email</span>
+            <b>Electricity bill</b>
+            <span>$412.35 · due 14 Dec</span>
+            <span class="pill warn">unpaid</span>
+          </div>
+          <div class="match-link">linked ⟷</div>
+          <div class="match-card">
+            <span class="match-kind">Bank transaction · Redbark</span>
+            <b>BPAY ELEC RETAILER 0042</b>
+            <span>−$412.35 · 13 Dec</span>
+            <span class="pill ok">paid</span>
+          </div>
+        </div>
+        <p class="note">Illustration with made-up values.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Where the AI is, and isn't</h2>
+      <div>
+        <p class="section-intro">
+          The same rule as ChatFinance: models handle language, code handles money. Each AI component has a
+          narrow job and a deterministic fallback.
+        </p>
+        <div class="strength-grid">
+          <div>
+            <h3>Agent over MCP</h3>
+            <p>43 typed tools: create and search allocations, attach invoices, link transactions, list holdings and tax summaries. The agent never touches the database or the bank API directly.</p>
+          </div>
+          <div>
+            <h3>On-device classification</h3>
+            <p>Apple's Foundation Models read a raw bank line, find the real merchant and pick a category, with the user's own past choices as few-shot examples. Guided generation returns a typed struct.</p>
+          </div>
+          <div>
+            <h3>History, then rules</h3>
+            <p>An ensemble: a history model trained on my own corrections, the LLM for merchant and category, and explicit rules for tax treatment. If the model is unavailable, history alone still works.</p>
+          </div>
+          <div>
+            <h3>Matching in code</h3>
+            <p>Linking payments to invoices is deterministic, additive and auditable. Links I made by hand are never overwritten by a later import.</p>
+          </div>
+        </div>
+        <div class="code">
+          <Code code={ensembleCode} lang="swift" theme="github-dark-dimmed" wrap />
+        </div>
+        <div class="code">
+          <Code code={linkerCode} lang="swift" theme="github-dark-dimmed" wrap />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Architecture</h2>
+      <div>
+        <div class="arch" role="img" aria-label="Architecture: the AI agent talks MCP to the sync server, which talks to Redbark and Postgres; the Money app syncs with the server">
+          <div class="arch-row">
+            <div class="arch-box accent">AI agent<small>Claude today · my own agent next</small></div>
+            <div class="arch-box">Money app<small>SwiftUI · SwiftData · macOS &amp; iOS</small></div>
+          </div>
+          <div class="arch-arrow">↓ MCP over HTTPS (OAuth 2.1 + PKCE) · sync push/pull + WebSocket</div>
+          <div class="arch-row">
+            <div class="arch-box strong">money-sync-server<small>Swift · Hummingbird · /money-mcp · /imap-mcp · importers · linker</small></div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-row">
+            <div class="arch-box">Postgres<small>append-only change log · jsonb payloads</small></div>
+            <div class="arch-box">Blob store<small>invoice PDFs by content hash</small></div>
+            <div class="arch-box muted">Redbark API<small>bank data provider</small></div>
+          </div>
+        </div>
+        <ul class="facts">
+          <li><strong>Self-hosted sync instead of iCloud:</strong> last-write-wins over an append-only change log, so model fields can change without a server migration.</li>
+          <li><strong>Sharing with roles:</strong> owner, editor and viewer per workspace (a viewer could be my accountant).</li>
+          <li><strong>Hardened:</strong> non-root containers, session revocation, rate limiting, fail2ban, nightly backups, TLS via Caddy.</li>
+          <li><strong>Runs on a 1 GB free-tier VM:</strong> images are built off-box and Postgres is tuned for low memory.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Testing on real data</h2>
+      <div>
+        <div class="stats">
+          <div><b>258</b><span>server tests</span></div>
+          <div><b>43</b><span>MCP tools</span></div>
+          <div><b>412</b><span>app commits</span></div>
+          <div><b>2</b><span>data providers</span></div>
+        </div>
+        <p class="prose">
+          Unit tests cover the obvious pairs. A separate <strong>link evaluation</strong> runs the real linker over
+          a restored copy of a real workspace and prints every pair it links, so a change to the matching rules is
+          judged on real data, not just on the cases I thought of.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>What's next</h2>
+      <ul class="facts">
+        <li><strong>Feed ChatFinance:</strong> Money becomes the source of actuals. <a href="/projects/chatfinance/">ChatFinance</a> pulls a snapshot and history over Money's API or MCP server, derives trends and growth from what really happened, and forecasts the future. Bookkeeping in, forecasting out.</li>
+        <li><strong>My own agent</strong> in place of a general-purpose assistant: invoice triage as a defined graph with evals, the same way ChatFinance is built.</li>
+        <li><strong>Due-date reminders</strong> and a “what's still unpaid” view driven by the matched data.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="container cs-section cs-end">
+    <a class="btn" href="/projects/chatfinance/">← ChatFinance</a>
+    <a class="btn primary" href="/#contact">Get in touch</a>
+  </section>
+</ProjectLayout>
