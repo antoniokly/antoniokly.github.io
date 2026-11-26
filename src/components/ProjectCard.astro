@@ -1,0 +1,23 @@
+---
+import type { Project } from '../data/site';
+interface Props {
+  project: Project;
+}
+const { project } = Astro.props;
+---
+
+<article class:list={['card', { featured: project.featured }]}>
+  <h3>{project.name}</h3>
+  <p>{project.summary}</p>
+  <ul class="tags">
+    {project.tags.map((t) => <li>{t}</li>)}
+  </ul>
+  {
+    (project.repo || project.demo) && (
+      <div class="card-links">
+        {project.demo && <a href={project.demo}>Live demo →</a>}
+        {project.repo && <a href={project.repo}>Source →</a>}
+      </div>
+    )
+  }
+</article>
