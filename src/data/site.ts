@@ -132,3 +132,46 @@ export const projects: Project[] = [
     tags: ['C++', 'ESP32', 'HomeKit'],
   },
 ];
+
+export type ShippedApp = {
+  name: string;
+  company: string;
+  when: string;
+  what: string;
+  link?: string; // only where the listing is the app I worked on
+};
+
+export const shippedApps: ShippedApp[] = [
+  {
+    name: 'Essential Energy Field and Fleet apps',
+    company: 'Capgemini, for Essential Energy (NSW)',
+    when: '2022 – present',
+    what: 'Internal enterprise apps for network workers managing power network and vehicle assets, with offline storage. Not on the public App Store.',
+  },
+  {
+    name: 'SRAM AXS',
+    company: 'Element Engineering Australia',
+    when: '2021 – 2022',
+    what: 'Rebuilt the bike component control app in SwiftUI and Jetpack Compose; set up test automation and CI/CD.',
+    link: 'https://apps.apple.com/au/app/sram-axs/id1430049231',
+  },
+  {
+    name: 'ASB Mobile Banking',
+    company: 'Datacom, for ASB Bank (NZ)',
+    when: '2019 – 2021',
+    what: 'Payment features in Objective-C and Swift for a major bank, with test automation, Fastlane and Azure DevOps.',
+    link: 'https://apps.apple.com/au/app/asb-mobile-banking/id434348489',
+  },
+  {
+    name: 'Z Energy and Caltex NZ apps',
+    company: 'Rush Digital',
+    when: 'earlier versions',
+    what: 'iOS, Android and React Native, with custom native modules for Siri Shortcuts and geofencing.',
+  },
+  {
+    name: 'Forsite',
+    company: 'Forsite and AnyObject',
+    when: 'earlier version',
+    what: 'Location and Bluetooth apps using GPS and iBeacon.',
+  },
+];

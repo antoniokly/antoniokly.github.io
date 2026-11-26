@@ -257,3 +257,15 @@ h3 { font-size: 17px; margin: 0 0 6px; }
 .timeline div { color: var(--muted); }
 .timeline b { color: var(--text); }
 @media (max-width: 600px) { .timeline li { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Shipped apps */
+#apps .section-intro { margin: -12px 0 24px; max-width: 70ch; }
+.apps { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.app { padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.app-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.app-head h3 { margin: 0; font-size: 16px; }
+.app-head h3 a { color: var(--text); }
+.app-head h3 a:hover { color: var(--accent); text-decoration: none; }
+.app-when { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.app-company { color: var(--accent) !important; font-size: 13.5px; font-weight: 600; margin: 2px 0 8px !important; }
+.app p { margin: 0; color: var(--muted); font-size: 14.5px; }
