@@ -2,6 +2,7 @@
 
 export const profile = {
   name: 'Kai Leung (Antonio) Yip',
+  preferredName: 'Antonio',
   role: 'AI Engineer · Software Engineer',
   tagline:
     'I build AI applications that people can trust with real numbers: agentic Python services with guardrails, evals and tracing, shipped through CI/CD to production.',
