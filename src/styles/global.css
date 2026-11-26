@@ -220,7 +220,7 @@ h3 { font-size: 17px; margin: 0 0 6px; }
   .cs-meta { grid-template-columns: 1fr; gap: 12px; }
   .match { grid-template-columns: 1fr; }
   .match-link { text-align: center; }
-  .nav nav a:nth-child(2), .nav nav a:nth-child(3), .nav nav a:nth-child(4), .nav nav a:nth-child(5) { display: none; }
+  .nav nav a:nth-child(2), .nav nav a:nth-child(3), .nav nav a:nth-child(4), .nav nav a:nth-child(5), .nav nav a:nth-child(6) { display: none; }
 }
 
 .cs-grid .strength-grid { grid-template-columns: repeat(2, 1fr); margin-bottom: 20px; }

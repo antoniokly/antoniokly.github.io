@@ -170,7 +170,7 @@ const linkerCode = `/// TransactionLinker — runs at the end of every import.
     <div class="cs-grid">
       <h2>Architecture</h2>
       <div>
-        <div class="arch" role="img" aria-label="Architecture: the AI agent talks MCP to the sync server, which talks to Redbark and Postgres; the Money app syncs with the server">
+        <div class="arch" role="img" aria-label="Architecture: the AI agent talks MCP to the sync server and the Money app syncs with it; the server stores data in Postgres and a blob store, and archives raw Redbark and SnapTrade data to MongoDB Atlas through two vaults">
           <div class="arch-row">
             <div class="arch-box accent">AI agent<small>Claude today · my own agent next</small></div>
             <div class="arch-box">Money app<small>SwiftUI · SwiftData · macOS &amp; iOS</small></div>
@@ -183,7 +183,12 @@ const linkerCode = `/// TransactionLinker — runs at the end of every import.
           <div class="arch-row">
             <div class="arch-box">Postgres<small>append-only change log · jsonb payloads</small></div>
             <div class="arch-box">Blob store<small>invoice PDFs by content hash</small></div>
-            <div class="arch-box muted">Redbark API<small>bank data provider</small></div>
+            <div class="arch-box">MongoDB Atlas<small>raw provider archive · audit trail</small></div>
+          </div>
+          <div class="arch-arrow">↑ scheduled refresh through redbark-vault and snaptrade-vault</div>
+          <div class="arch-row">
+            <div class="arch-box muted">Redbark API<small>bank accounts · Consumer Data Right</small></div>
+            <div class="arch-box muted">SnapTrade API<small>brokerage accounts and activity</small></div>
           </div>
         </div>
         <ul class="facts">
@@ -192,6 +197,46 @@ const linkerCode = `/// TransactionLinker — runs at the end of every import.
           <li><strong>Hardened:</strong> non-root containers, session revocation, rate limiting, fail2ban, nightly backups, TLS via Caddy.</li>
           <li><strong>Runs on a 1 GB free-tier VM:</strong> images are built off-box and Postgres is tuned for low memory.</li>
         </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Bank and brokerage data</h2>
+      <div>
+        <p class="section-intro">
+          Providers only serve a rolling window of history, and their records change after the fact: a pending
+          payment settles under a new id, a merchant name is filled in later. So before anything reaches the
+          books, every raw response is archived untouched, deduplicated and kept forever, for debugging and
+          audit.
+        </p>
+        <ol class="flow">
+          <li><span class="flow-step">Schedule</span><span>A job on the server runs the archive refresh. Each account is fetched incrementally from three days before its last successful fetch, which covers a missed run, a time-zone offset and a late-posting transaction.</span></li>
+          <li><span class="flow-step">Fetch</span><span>Two small Python projects, <strong>redbark-vault</strong> for bank accounts and <strong>snaptrade-vault</strong> for brokerage accounts, call each provider's API. They are deliberately separate, one per provider's data shape.</span></li>
+          <li class="check"><span class="flow-step">Archive</span><span>Each raw object is stored untouched in MongoDB Atlas, keyed by a hash of its own content: re-fetching the same day is a no-op, and nothing is ever updated or deleted.</span></li>
+          <li class="check"><span class="flow-step">Dedupe</span><span>A second identity built from the transaction's own fields, with a unique index, catches the provider's duplicates and changed records.</span></li>
+          <li><span class="flow-step">Record</span><span>Every run is logged, so the server's status endpoint can answer “did last night's refresh run, and how far did each account reach?”</span></li>
+          <li><span class="flow-step">Import</span><span>Turning the archive into a workspace's transactions, then linking them to invoices, are separate steps the app triggers, because they belong to a workspace.</span></li>
+        </ol>
+        <div class="strength-grid" style="margin-top: 24px">
+          <div>
+            <h3>Never trust one id</h3>
+            <p>The bank feed once returned the same card purchase twice in one response, under two different ids. The content-derived key catches that, and it was checked against real collisions before being trusted.</p>
+          </div>
+          <div>
+            <h3>Supersede, don't overwrite</h3>
+            <p>When a record changes, the old version is kept and points to the new one. One active record per real-world transaction, with its full edit history behind it.</p>
+          </div>
+          <div>
+            <h3>Pending to settled</h3>
+            <p>A pending payment is matched to the settled transaction that replaces it (by receipt number, cleaned description or a sole candidate), so the real time it happened is kept.</p>
+          </div>
+          <div>
+            <h3>Widened on evidence</h3>
+            <p>A dividend and its tax withholding shared every field but amount and description, so the brokerage key was widened to keep them apart, then verified on 949 archived trades: no false merges.</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>

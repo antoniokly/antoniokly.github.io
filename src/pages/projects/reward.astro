@@ -1,0 +1,282 @@
+---
+import { Code } from 'astro:components';
+import ProjectLayout from '../../layouts/ProjectLayout.astro';
+import Figure from '../../components/Figure.astro';
+
+// Set to the dashboard screenshot's path once it is in public/images/reward/.
+const dashboard: string | null = '/images/reward/dashboard.jpg';
+
+const strategyCode = `# reward/strategy/mine.py: a whole strategy. No loop, no tick().
+from reward.analysis.strategy import Strategy
+
+class Mine(Strategy):
+    NAME = "mine"
+    KIND = "equity"                  # "equity" or "option"; goes on every order
+    PARAMS = ("approval_minutes",)   # keys its .toml must carry, or it is never built
+    FLAT_BY_CLOSE = True             # sell everything before the close
+
+    def decide(self, run):           # once, in the morning window
+        mood = self.market_conditions()          # the AI panel's reading
+        ...
+        return self.propose(...) or self.decline(..., "why not")
+
+    def act(self, decision):         # in market hours, per approved trade
+        return self.place(...)
+
+STRATEGY = Mine`;
+
+const tomlCode = `# reward/strategy/daytrader.toml: the limits are committed, not configured
+[strategy]
+class = "daytrader"
+account = "alpaca"                 # its own account, so its losses can't eat another's
+
+[risk]
+max_open_positions = 5
+max_daily_realised_loss = 500.0    # five names, 2% trail each, about 500 on a bad day
+allowed_instrument_kinds = ["equity"]
+
+[params]
+opening_range_minutes = 30         # the first half hour sets the high to beat`;
+
+const gateCode = `# reward/analysis/riskgate.py: the first of three enforcement points
+def may_open(strategy: str, account: str, *, kind: str) -> str | None:
+    """Why this instance may not open a position, or None if it may."""
+    declared = documents.for_instance(strategy, account)
+    if declared is None:
+        # Nobody wrote down what this instance may risk, so nobody decided it.
+        # The answer stays no until a human commits a document and the
+        # image is rebuilt: there is nothing to switch on at runtime.
+        return "declares no risk controls"
+
+    allowed = declared.risk.allowed_instrument_kinds
+    if kind not in allowed:
+        return f"may trade {', '.join(allowed)}, not {kind}"
+    return None`;
+
+const panelCode = `# reward/data/ai.py: a panel is asked, not walked
+def ask_all(self, brief: Brief, *, timeout: float = ASK_TIMEOUT) -> PanelAnswer:
+    """Put the brief to every available provider, concurrently.
+
+    Models disagreeing is the most informative thing that can happen, so
+    every reply is kept. A provider that fails costs itself a cooldown and is
+    named in \`unreachable\`; it never lets another model's answer stand in."""
+    asked = self.available()
+    with ThreadPoolExecutor(max_workers=len(asked)) as pool:
+        outcomes = list(pool.map(one, asked))
+    ...`;
+---
+
+<ProjectLayout
+  title="Reward"
+  kicker="Case study · AI-assisted trading · Python"
+  lead="An AI-assisted trading system, running in paper trading. Data providers supply facts, an AI panel reads the market, strategies decide, a risk gate enforces limits, and brokers place the orders. Every trade, and every trade not taken, is recorded with its reason."
+  meta={[
+    { label: 'Role', value: 'Solo: design, engineering, ops' },
+    { label: 'Stack', value: 'Python · Postgres · Docker · IBKR · Alpaca · Gemini · MCP' },
+    { label: 'Status', value: 'Paper trading; cash built, not enabled' },
+  ]}
+>
+  {
+    dashboard && (
+      <div class="container">
+        <Figure
+          src={dashboard}
+          alt="The Reward paper dashboard for the crusher strategy on an IBKR paper account: broker connections for Alpaca, IBKR and a simulator, open positions 0 of 5, realised today 0 against a 2000 maximum loss, and a table of recent decisions, mostly skipped trades with the reason each was refused, such as open interest or volume below the minimum"
+          width={1600}
+          height={779}
+          label="Paper dashboard"
+          caption="The paper dashboard for one strategy instance: its broker connections, its limits beside today's result, and every decision with its reason. Most days the right answer is no trade, and the dashboard says exactly why."
+        />
+      </div>
+    )
+  }
+
+  <section class="container cs-section first">
+    <div class="cs-grid">
+      <h2>The question</h2>
+      <div class="prose">
+        <p>
+          Where does AI belong in a system that moves money? My answer, built into the architecture: an AI model
+          is an <strong>interpreter, never a decider</strong>. It reads the news and characterises market
+          conditions. Tested strategy code decides what to do about that reading, and hard limits a model can't
+          change decide whether it is allowed.
+        </p>
+        <p class="pull">
+          The safest control is one that does not depend on code reading a flag correctly: a stopped container
+          places no orders, whatever any table says.
+        </p>
+        <p class="note">An engineering project in paper trading, not investment advice.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Design principles</h2>
+      <ol class="objectives">
+        <li><strong>Decision-making is isolated.</strong><span>Only strategies decide. Data providers, the AI panel and brokers supply information or carry out instructions.</span></li>
+        <li><strong>Risk rules are not negotiable.</strong><span>Every strategy instance declares its limits in a committed file baked into the image. Nothing running can relax them; that takes a commit and a redeploy.</span></li>
+        <li><strong>Defence in depth.</strong><span>The risk gate checks before a strategy decides, the broker refuses the same order again through separately written code, and an ops service can stop any container outright.</span></li>
+        <li><strong>Paper and cash separated end to end.</strong><span>Twin containers, credentials and databases, fixed at deploy time. Strategy code can't tell whether the money is real, so it can't behave differently.</span></li>
+        <li><strong>Least capability per container.</strong><span>Only ops holds the Docker socket; a paper container holds no cash credentials; the public dashboard holds no broker SDK at all.</span></li>
+        <li><strong>Humans stay in the loop.</strong><span>Approval cards and alerts through Telegram, a morning digest, and an MCP endpoint for supervising the system conversationally.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Architecture</h2>
+      <div>
+        <div class="arch" role="img" aria-label="Architecture: data providers and an AI panel feed the analysis containers, where strategies decide and a risk gate checks; orders go to broker containers for IBKR and Alpaca; ops, messenger, web dashboard and MCP sit alongside, with PostgreSQL as the single source of truth">
+          <div class="arch-row">
+            <div class="arch-box">Market data<small>IBKR · Alpaca · Yahoo · Finnhub · Massive · MarketData.app</small></div>
+            <div class="arch-box accent">AI panel<small>reads news, characterises conditions · Gemini</small></div>
+          </div>
+          <div class="arch-arrow">↓ facts and a reading, never a decision</div>
+          <div class="arch-row">
+            <div class="arch-box strong">Analysis (paper | cash)<small>strategies decide · risk gate checks · decisions journaled</small></div>
+          </div>
+          <div class="arch-arrow">↓ approved orders</div>
+          <div class="arch-row">
+            <div class="arch-box strong">Broker (paper | cash)<small>final gatekeeper · IBKR and Alpaca · one account per strategy</small></div>
+          </div>
+          <div class="arch-arrow">alongside</div>
+          <div class="arch-row">
+            <div class="arch-box">Ops<small>health · can stop any container</small></div>
+            <div class="arch-box">Messenger<small>Telegram approvals · digest</small></div>
+            <div class="arch-box">Dashboard<small>read-only proxy</small></div>
+            <div class="arch-box">MCP<small>OAuth · agent supervision</small></div>
+            <div class="arch-box">PostgreSQL<small>one source of truth</small></div>
+          </div>
+        </div>
+        <ul class="facts">
+          <li><strong>Providers hidden behind abstractions:</strong> a caller asks for a quote, bars, earnings or news without knowing who answers. Providers are ranked, health-checked and given cooldowns.</li>
+          <li><strong>Secrets by environment:</strong> GitHub Environments write each container's settings at deploy. Cash secrets are readable only by a <code>stable</code> tag, never by a push to <code>main</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>The AI panel</h2>
+      <div>
+        <p class="section-intro">
+          Market data providers answer “what is the price”, where the first good answer wins. An AI model answers
+          “what are conditions like”, where there is no single right answer. So the panel asks every configured
+          model the same question at once and keeps every reply, because disagreement is information.
+        </p>
+        <div class="code">
+          <Code code={panelCode} lang="python" theme="github-dark-dimmed" wrap />
+        </div>
+        <ul class="facts">
+          <li><strong>A closed vocabulary:</strong> a reading must use fixed values, such as trend up, down or sideways, so strategies consume structure rather than prose.</li>
+          <li><strong>Grounded in a brief:</strong> the models can't browse. News is fetched by a data provider and handed over, so every reading says which window of news it covers.</li>
+          <li><strong>Built for more than one model:</strong> a fan-out with one provider today, so adding a second is a key, not a rewrite.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Strategies as plugins</h2>
+      <div>
+        <p class="section-intro">
+          A strategy is one Python file and one <code>.toml</code>. It implements two hooks; the runtime handles
+          the clock, the loop, approvals and order tracking. A missing parameter is not a default: nothing trades
+          on a number nobody chose.
+        </p>
+        <div class="code">
+          <Code code={strategyCode} lang="python" theme="github-dark-dimmed" wrap />
+        </div>
+        <div class="code">
+          <Code code={tomlCode} lang="toml" theme="github-dark-dimmed" wrap />
+        </div>
+        <table class="status-table">
+          <thead><tr><th>Strategy</th><th>Trades</th></tr></thead>
+          <tbody>
+            <tr><td>generator</td><td>Defined-risk same-day index option spreads</td></tr>
+            <tr><td>crusher</td><td>Credit spreads on stocks around earnings</td></tr>
+            <tr><td>daytrader</td><td>Opening-range breakouts on large caps</td></tr>
+            <tr><td>wheel</td><td>Cash-secured puts and covered calls on index ETFs</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>The risk gate</h2>
+      <div>
+        <p class="section-intro">
+          It holds no numbers of its own. It enforces one rule: an instance that hasn't declared its limits opens
+          nothing. It refuses opening, never exiting, so a blocked strategy can still sell what it holds.
+        </p>
+        <div class="code">
+          <Code code={gateCode} lang="python" theme="github-dark-dimmed" wrap />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>Engineering</h2>
+      <div>
+        <div class="stats">
+          <div><b>1,893</b><span>automated tests</span></div>
+          <div><b>~35k</b><span>lines of Python</span></div>
+          <div><b>6</b><span>market data providers</span></div>
+          <div><b>2</b><span>brokers, paper and cash twins</span></div>
+        </div>
+        <ul class="facts">
+          <li><strong>Validated in paper:</strong> every strategy instance ran on IBKR and Alpaca paper accounts; the broker's reconcile loop checks positions every 20 seconds against the dashboard.</li>
+          <li><strong>Failure drills:</strong> restarting the container that holds every provider connection, live, recovered all 18 provider capabilities in about a minute with no errors downstream.</li>
+          <li><strong>Explainable by design:</strong> every decision, including a skipped one, is stored with its reason, and a preview command shows a strategy's morning decision without writing anything.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>CI/CD to Oracle Cloud</h2>
+      <div>
+        <p class="section-intro">
+          A complete GitHub Actions pipeline deploys to an Oracle Cloud VM. Nothing reaches the trading stack
+          unless the tests pass on the exact commit being shipped, and real money has its own, deliberate gate.
+        </p>
+        <ol class="flow">
+          <li><span class="flow-step">PR</span><span>Lint and the whole test suite run on GitHub's machines against a throwaway database, using the same script a developer runs locally. A bot comment says whether merging deploys to paper and lists exactly which app commits it would ship.</span></li>
+          <li class="check"><span class="flow-step">Plan</span><span>A push to <code>main</code> deploys only if an app file changed since paper's last successful deploy. A docs- or test-only merge ships nothing; an app commit that never deployed still ships next time.</span></li>
+          <li class="check"><span class="flow-step">Test</span><span>The same suite runs again on the commit being deployed. A merge that breaks a test lands on <code>main</code> but never reaches the VM; the stack keeps running the last build that passed.</span></li>
+          <li><span class="flow-step">Secrets</span><span>Each container's settings are written from GitHub Environments at mode 600, printing no value. Cash secrets are readable only by the <code>stable</code> tag.</span></li>
+          <li><span class="flow-step">Deploy</span><span>A self-hosted runner on the VM builds and restarts the paper containers and shared infrastructure. The runner dials out to GitHub, so nothing on the VM is exposed for it.</span></li>
+          <li class="check"><span class="flow-step">Promote</span><span>Cash containers deploy only when the <code>stable</code> tag is moved to a tested commit: a deliberate promotion, never a side effect of a merge.</span></li>
+        </ol>
+        <ul class="facts" style="margin-top: 20px">
+          <li><strong>Locked down:</strong> every host port is bound to localhost except the dashboard, which sits behind HTTPS and a login; internal APIs are reached over an SSH tunnel.</li>
+          <li><strong>No polling, no wasted runs:</strong> deploys are event-driven, a newer push cancels an outdated PR run, and a run a deploy is waiting on is never cancelled.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="container cs-section">
+    <div class="cs-grid">
+      <h2>What's next</h2>
+      <ul class="facts">
+        <li><strong>Compare fills between brokers</strong> for the same strategy before trusting either.</li>
+        <li><strong>Cash safety, then a first controlled cash trade:</strong> a deliberate release process with its own milestones, not a switch.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="container cs-section cs-end">
+    <a class="btn" href="/projects/agentic-delivery/">← Agentic delivery</a>
+    <a class="btn primary" href="/#contact">Get in touch</a>
+  </section>
+</ProjectLayout>

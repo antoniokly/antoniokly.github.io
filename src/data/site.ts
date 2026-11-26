@@ -99,6 +99,14 @@ export const projects: Project[] = [
     featured: true,
   },
   {
+    name: 'Reward',
+    summary:
+      'An AI-assisted trading system in paper trading: an AI panel reads the market, tested strategies decide, a risk gate enforces committed limits, and brokers place the orders. Full CI/CD to Oracle Cloud.',
+    tags: ['Python', 'AI panel', 'Risk controls', 'IBKR', 'Alpaca', 'CI/CD'],
+    page: '/projects/reward/',
+    featured: true,
+  },
+  {
     name: 'CoreFinance',
     summary:
       'The deterministic forecasting engine under both projects: typed models for loans, assets, cash flows, depreciation and tax, in Swift and in Python (Pydantic v2).',
