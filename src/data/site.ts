@@ -14,7 +14,7 @@ export const profile = {
   location: 'Perth, Australia',
   links: {
     github: 'https://github.com/antoniokly',
-    linkedin: 'https://www.linkedin.com/in/antonio-kai-leung-yip-481a96120',
+    linkedin: 'https://www.linkedin.com/in/kai-leung-antonio-yip-481a96120',
     email: 'kai.perth@icloud.com',
     resume: '', // e.g. '/resume.pdf' (put the file in public/)
   },
